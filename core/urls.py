@@ -6,6 +6,7 @@ from .views import DonationViewSet, RegisterView
 router = DefaultRouter()
 router.register(r"donations", DonationViewSet, basename="donation")
 
+
 urlpatterns = [
     path("", include(router.urls)),
 ]
@@ -13,4 +14,5 @@ urlpatterns = [
 
 urlpatterns += [
     path("register/", RegisterView.as_view(), name="register"),
+    
 ]

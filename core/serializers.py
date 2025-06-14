@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 
-from .models import Donation
+from core.models import Donation, Profile
 
 
 class DonationSerializer(serializers.ModelSerializer):
@@ -13,15 +13,17 @@ class DonationSerializer(serializers.ModelSerializer):
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    role = serializers.ChoiceField(
+        choices=Profile.ROLE_CHOICES, write_only=True
+    )
 
     class Meta:
         model = User
-        fields = ["username", "password", "email"]
+        fields = ["username", "email", "password", "role"]
 
     def create(self, validated_data):
-        user = User.objects.create_user(
-            username=validated_data["username"],
-            email=validated_data.get("email"),
-            password=validated_data["password"],
-        )
+        role = validated_data.pop("role")
+        user = User.objects.create_user(**validated_data)
+        user.profile.role = role
+        user.profile.save()
         return user
