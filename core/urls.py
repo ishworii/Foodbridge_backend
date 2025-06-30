@@ -20,7 +20,7 @@ urlpatterns = [
 
 
 urlpatterns += [
-    path("register/", RegisterView.as_view(), name="register"),
+    path("auth/register/", RegisterView.as_view(), name="register"),
     path("me/", MeView.as_view(), name="me"),
     path(
         "users/<int:user_id>/donations/",
