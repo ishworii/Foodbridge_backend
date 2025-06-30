@@ -2,4 +2,7 @@ django
 djangorestframework
 djangorestframework-simplejwt
 python-dotenv
+django-ckeditor
+Pillow
+django-cors-headers
 

@@ -1,3 +1,4 @@
+from ckeditor.fields import RichTextField
 from django.contrib.auth.models import User
 from django.db import models
 
@@ -7,9 +8,16 @@ class Donation(models.Model):
         User, on_delete=models.CASCADE, related_name="donations"
     )
     title = models.CharField(max_length=100)
-    description = models.TextField()
+    description = RichTextField()
     quantity = models.PositiveIntegerField()
     location = models.CharField(max_length=255)
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    food_type = models.CharField(max_length=50, null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+    image = models.ImageField(
+        upload_to="donations/", null=True, blank=True
+    )
     is_claimed = models.BooleanField(default=False)
     claimed_by = models.ForeignKey(
         User,
