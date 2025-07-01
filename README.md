@@ -2,7 +2,7 @@
 
 > **Local Food Rescue & Redistribution Network**
 
-This repository contains the backend API for FoodBridge, built with Django and Django REST Framework (DRF). It provides functionality for user registration, authentication, donation management, and donation claiming with role-based permissions.
+This repository contains the backend API for FoodBridge, built with Django and Django REST Framework (DRF). It provides functionality for user registration, authentication, donation management, claiming, and a robust admin dashboard.
 
 ---
 
@@ -11,12 +11,11 @@ This repository contains the backend API for FoodBridge, built with Django and D
 1. [Project Overview](#project-overview)
 2. [Setup Instructions](#setup-instructions)
 3. [Models](#models)
-4. [Serializers](#serializers)
-5. [Views & Endpoints](#views--endpoints)
-6. [Authentication](#authentication)
-7. [User Roles](#user-roles)
+4. [API Endpoints](#api-endpoints)
+5. [Authentication](#authentication)
+6. [User Roles](#user-roles)
+7. [Admin Features](#admin-features)
 8. [Testing](#testing)
-9. [Next Steps](#next-steps)
 
 ---
 
@@ -26,112 +25,88 @@ FoodBridge connects individuals willing to donate surplus food (Donors) with peo
 
 * **User registration** with role selection
 * **JWT-based authentication**
-* **Create, read, update, delete** (CRUD) operations for donations by Donors
-* **Claiming donations** by Receivers
-* **Role-based permissions** to enforce access control
+* **CRUD operations for donations**
+* **Claiming donations**
+* **Role-based permissions**
+* **Admin dashboard endpoints for statistics and management**
 
 ---
 
 ## Setup Instructions
 
 1. **Clone the repository**
-
    ```bash
-   git clone git@github.com:ishworii/Foodbridge_backend.git
-   cd Foodbridge-backend
+   git clone <repo-url>
+   cd foodbridge-backend
    ```
 2. **Create virtual environment & install dependencies**
-
    ```bash
-   python -m venv venv
-   source venv/bin/activate
+   python -m venv env
+   source env/bin/activate
    pip install -r requirements.txt
    ```
 3. **Apply migrations**
-
    ```bash
    python manage.py makemigrations
    python manage.py migrate
    ```
-4. **Run development server**
-
+4. **Create a superuser (for admin access)**
+   ```bash
+   python manage.py createsuperuser
+   ```
+5. **Run development server**
    ```bash
    python manage.py runserver
    ```
-5. **Access API** at `http://localhost:8000/api/`
 
 ---
 
 ## Models
 
 ### Profile
-
-* **Fields:**
-
-  * `user` — OneToOne to `User`
-  * `role` — Choice of `donor` or `receiver`
+* `user` — OneToOne to `User`
+* `role` — Choice of `donor` or `receiver`
 
 ### Donation
-
-* **Fields:**
-
-  * `donor` — ForeignKey to `User`
-  * `title` — CharField
-  * `description` — TextField
-  * `quantity` — PositiveIntegerField
-  * `location` — CharField
-  * `is_claimed` — BooleanField
-  * `claimed_by` — ForeignKey to `User` (nullable)
-  * `created_at` — DateTimeField (auto\_now\_add)
+* `donor` — ForeignKey to `User`
+* `title`, `description`, `quantity`, `location`, `food_type`, `expiry_date`, `image`
+* `is_claimed` — BooleanField
+* `claimed_by` — ForeignKey to `User` (nullable)
+* `created_at` — DateTimeField
 
 ---
 
-## Serializers
+## API Endpoints
 
-* **RegisterSerializer**
-
-  * Handles user creation and assigns `role` to the Profile
-* **DonationSerializer**
-
-  * Serializes all fields of `Donation`
-  * Read-only: `id`, `donor`, `created_at`, `claimed_by`, `is_claimed`
-
----
-
-## Views & Endpoints
-
-### Registration
-
-* `POST /api/register/`
-
-  * **Payload:** `{ "username", "email", "password", "role" }`
-
-### Authentication (JWT)
-
-* `POST /api/token/` — Obtain access & refresh tokens
+### Registration & Authentication
+* `POST /api/register/` — Register a new user
+* `POST /api/token/` — Obtain JWT tokens
 * `POST /api/token/refresh/` — Refresh access token
 
-### Donation CRUD
-
-* `GET    /api/donations/` — List donations
+### Donation Management
+* `GET    /api/donations/` — List all donations
 * `POST   /api/donations/` — Create a donation (Donor only)
 * `GET    /api/donations/{id}/` — Retrieve a donation
-* `PUT    /api/donations/{id}/` — Full update (Donor only)
-* `PATCH  /api/donations/{id}/` — Partial update (Donor only)
-* `DELETE /api/donations/{id}/` — Delete (Donor only)
+* `PUT    /api/donations/{id}/` — Update a donation (Donor only)
+* `DELETE /api/donations/{id}/` — Delete a donation (Donor only or Admin)
+* `POST   /api/donations/{id}/claim/` — Claim a donation (Receiver only)
+* `GET    /api/donations/claimed_by_user/?user_id={id}` — Claimed donations for current user
 
-### Claim Donation
+### User Management
+* `GET /api/users/{id}/donations/` — Donations by a specific user
+* `GET /api/me/` — Current user profile
 
-* `POST /api/donations/{id}/claim/` — Claim a donation (Receiver only)
+### Admin Endpoints
+* `GET /api/admin/stats/` — Platform statistics
+* `GET /api/admin/donations/` — Manage all donations
+* `DELETE /api/admin/donations/{id}/` — Delete any donation (Admin only)
 
 ---
 
 ## Authentication
 
 * Uses **Simple JWT**
-* Default token lifetimes configured in `settings.py`
 * Add header:
-
   ```
   Authorization: Bearer <access_token>
   ```
@@ -140,36 +115,33 @@ FoodBridge connects individuals willing to donate surplus food (Donors) with peo
 
 ## User Roles
 
-* **Donor**
+* **Donor**: Can create, edit, and delete their own donations
+* **Receiver**: Can claim available donations
+* **Admin**: Can manage all donations and view platform statistics
 
-  * Can register donations
-  * Can view all donations
-* **Receiver**
+---
 
-  * Can view all donations
-  * Can claim unclaimed donations
+## Admin Features
 
-Permissions enforced via custom DRF permission classes (`IsDonor`, `IsReceiver`).
+- **Admin Dashboard Endpoints**: For statistics, trends, and donation management
+- **Full CRUD for Donations**: Admins can edit/delete any donation
+- **User Statistics**: Track user roles and activity
 
 ---
 
 ## Testing
 
-1. **Register users** with roles
-2. **Login** to obtain JWT tokens
-3. **Create donations** as Donor
-4. **Attempt unauthorized actions** (e.g., Receiver creating donation)
-5. **Claim donation** as Receiver
-6. **Verify double-claim protection**
-7. **List and filter** donations
+1. Register users with roles
+2. Login to obtain JWT tokens
+3. Create donations as Donor
+4. Attempt unauthorized actions (e.g., Receiver creating donation)
+5. Claim donation as Receiver
+6. Verify double-claim protection
+7. List and filter donations
 
 ---
 
-## Next Steps
+## License
 
-* Add filtering and search (e.g., by location or `is_claimed` status)
-* Implement pagination
-* Add profile editing endpoints
-* Set up email notifications
-* Build the frontend to consume these APIs
+This project is part of the FoodBridge platform.
 

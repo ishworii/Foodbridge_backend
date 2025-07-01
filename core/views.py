@@ -8,7 +8,9 @@ from rest_framework import (
     viewsets,
 )
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from core.models import Donation
 from core.permissions import IsDonor, IsReceiver
@@ -19,6 +21,125 @@ from core.serializers import (
     UserSerializer,
     UserUpdateSerializer,
 )
+
+
+class AdminStatsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        from datetime import datetime, timedelta
+
+        from django.db.models import Count, Q
+
+        # Basic stats
+        total_users = User.objects.count()
+        total_donations = Donation.objects.count()
+        claimed_donations = Donation.objects.filter(
+            is_claimed=True
+        ).count()
+        available_donations = Donation.objects.filter(
+            is_claimed=False
+        ).count()
+
+        # User stats
+        donor_users = User.objects.filter(
+            profile__role="donor"
+        ).count()
+        receiver_users = User.objects.filter(
+            profile__role="receiver"
+        ).count()
+
+        # Recent activity (last 30 days)
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        recent_donations = Donation.objects.filter(
+            created_at__gte=thirty_days_ago
+        ).count()
+        recent_claims = Donation.objects.filter(
+            is_claimed=True, created_at__gte=thirty_days_ago
+        ).count()
+
+        # Food type breakdown
+        food_type_stats = (
+            Donation.objects.values("food_type")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+
+        # Monthly trends (last 6 months)
+        monthly_stats = []
+        for i in range(6):
+            month_start = datetime.now() - timedelta(days=30 * i)
+            month_end = month_start + timedelta(days=30)
+            month_donations = Donation.objects.filter(
+                created_at__gte=month_start, created_at__lt=month_end
+            ).count()
+            month_claims = Donation.objects.filter(
+                is_claimed=True,
+                created_at__gte=month_start,
+                created_at__lt=month_end,
+            ).count()
+            monthly_stats.append(
+                {
+                    "month": month_start.strftime("%B %Y"),
+                    "donations": month_donations,
+                    "claims": month_claims,
+                }
+            )
+
+        # Recent donations for admin review
+        recent_donations_list = Donation.objects.select_related(
+            "donor", "claimed_by"
+        ).order_by("-created_at")[:10]
+
+        return Response(
+            {
+                "total_users": total_users,
+                "total_donations": total_donations,
+                "claimed_donations": claimed_donations,
+                "available_donations": available_donations,
+                "donor_users": donor_users,
+                "receiver_users": receiver_users,
+                "recent_donations_30d": recent_donations,
+                "recent_claims_30d": recent_claims,
+                "food_type_stats": list(food_type_stats),
+                "monthly_trends": monthly_stats,
+                "recent_donations_list": DonationSerializer(
+                    recent_donations_list, many=True
+                ).data,
+                "claim_rate": (
+                    (claimed_donations / total_donations * 100)
+                    if total_donations > 0
+                    else 0
+                ),
+            }
+        )
+
+
+class AdminDonationsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        """Get all donations for admin management"""
+        donations = Donation.objects.select_related(
+            "donor", "claimed_by"
+        ).order_by("-created_at")
+        serializer = DonationSerializer(donations, many=True)
+        return Response(serializer.data)
+
+    def delete(self, request, donation_id):
+        """Delete a donation (admin only)"""
+        try:
+            donation = Donation.objects.get(id=donation_id)
+            donation.delete()
+            return Response(
+                {"message": "Donation deleted successfully"},
+                status=status.HTTP_204_NO_CONTENT,
+            )
+        except Donation.DoesNotExist:
+            return Response(
+                {"error": "Donation not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
 
 class RegisterView(generics.CreateAPIView):
@@ -37,6 +158,10 @@ class DonationViewSet(viewsets.ModelViewSet):
         return context
 
     def get_permissions(self):
+        # Admin users can do everything
+        if self.request.user.is_superuser:
+            return [permissions.IsAuthenticated()]
+
         # Only donors can create, update or delete donations
         if self.action in [
             "create",
@@ -76,6 +201,36 @@ class DonationViewSet(viewsets.ModelViewSet):
             {"success": "Donation claimed successfully."},
             status=status.HTTP_200_OK,
         )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def claimed_by_user(self, request):
+        """Get all donations claimed by a specific user"""
+        user_id = request.query_params.get("user_id")
+        if not user_id:
+            return Response(
+                {"error": "user_id parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Only allow users to see their own claimed donations
+        if int(user_id) != request.user.id:
+            return Response(
+                {
+                    "error": "You can only view your own claimed donations"
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        claimed_donations = Donation.objects.filter(
+            claimed_by_id=user_id, is_claimed=True
+        ).order_by("-created_at")
+
+        serializer = DonationSerializer(claimed_donations, many=True)
+        return Response(serializer.data)
 
     @action(
         detail=False,

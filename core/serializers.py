@@ -44,10 +44,11 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     role = serializers.CharField(source="profile.role")
+    is_superuser = serializers.BooleanField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "role"]
+        fields = ["id", "username", "email", "role", "is_superuser"]
         read_only_fields = fields
 
 

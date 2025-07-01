@@ -2,6 +2,8 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from core.views import (
+    AdminDonationsView,
+    AdminStatsView,
     DonationViewSet,
     MeView,
     RegisterView,
@@ -16,6 +18,14 @@ router.register(r"users", UserViewSet, basename="user")
 
 urlpatterns = [
     path("", include(router.urls)),
+    path(
+        "admin/stats/", AdminStatsView.as_view(), name="admin-stats"
+    ),
+    path(
+        "admin/donations/",
+        AdminDonationsView.as_view(),
+        name="admin-donations",
+    ),
 ]
 
 
